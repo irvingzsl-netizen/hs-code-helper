@@ -11,121 +11,6 @@
             box-sizing: border-box;
         }
 
-        /* 密码保护层样式 */
-        #passwordOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #f5f5f7;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-
-        #passwordOverlay.hidden {
-            display: none;
-        }
-
-        .password-container {
-            background: #ffffff;
-            padding: 50px 60px;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
-        }
-
-        .password-container h2 {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: #1d1d1f;
-            letter-spacing: -0.5px;
-        }
-
-        .password-container p {
-            font-size: 15px;
-            color: #86868b;
-            margin-bottom: 30px;
-        }
-
-        .password-input-group {
-            margin-bottom: 20px;
-        }
-
-        #passwordInput {
-            width: 100%;
-            padding: 14px 20px;
-            border: 2px solid #e5e5e7;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: all 0.3s;
-            outline: none;
-            text-align: center;
-            letter-spacing: 2px;
-        }
-
-        #passwordInput:focus {
-            border-color: #007aff;
-            box-shadow: 0 0 0 4px rgba(0,122,255,0.1);
-        }
-
-        #passwordInput.error {
-            border-color: #ff3b30;
-            animation: shake 0.4s;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-8px); }
-            40%, 80% { transform: translateX(8px); }
-        }
-
-        .password-error {
-            color: #ff3b30;
-            font-size: 13px;
-            margin-top: 8px;
-            min-height: 20px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .password-error.show {
-            opacity: 1;
-        }
-
-        #passwordSubmit {
-            width: 100%;
-            padding: 14px 20px;
-            background: #007aff;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        #passwordSubmit:hover {
-            background: #0056d6;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,122,255,0.3);
-        }
-
-        #passwordSubmit:active {
-            transform: translateY(0);
-        }
-
-        .lock-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: #f5f5f7;
@@ -311,31 +196,22 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 1px solid #e5e5e7;
+            cursor: pointer;
             position: relative;
         }
 
-        .header-text {
-            margin-right: 8px;
+        th:hover {
+            background: #ebebeb;
         }
 
-        .edit-header-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            padding: 2px 6px;
-            opacity: 0;
-            transition: all 0.2s;
-            margin-left: 4px;
-        }
-
-        th:hover .edit-header-btn {
-            opacity: 0.6;
-        }
-
-        .edit-header-btn:hover {
-            opacity: 1 !important;
-            transform: scale(1.2);
+        th:hover::after {
+            content: '✏️';
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            animation: pulse 1s infinite;
         }
 
         tbody tr {
@@ -390,6 +266,26 @@
             border-radius: 12px;
             font-size: 12px;
             white-space: nowrap;
+        }
+
+        .delete-col-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            opacity: 0;
+            transition: all 0.2s;
+            margin-left: 8px;
+        }
+
+        th:hover .delete-col-btn {
+            opacity: 0.6;
+        }
+
+        .delete-col-btn:hover {
+            opacity: 1 !important;
+            transform: scale(1.3);
         }
 
         .delete-btn {
@@ -484,6 +380,88 @@
             color: #86868b;
         }
 
+
+
+        .hidden {
+            display: none !important;
+        }
+
+        .password-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #f5f5f7, #ffffff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+
+        .password-card {
+            width: 100%;
+            max-width: 420px;
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 34px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+            text-align: center;
+        }
+
+        .password-card h2 {
+            font-size: 26px;
+            margin-bottom: 8px;
+        }
+
+        .password-card p {
+            color: #6e6e73;
+            margin-bottom: 22px;
+        }
+
+        #passwordInput {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e5e5e7;
+            border-radius: 10px;
+            font-size: 18px;
+            text-align: center;
+            outline: none;
+            margin-bottom: 14px;
+        }
+
+        #passwordInput:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 4px rgba(0,122,255,0.1);
+        }
+
+        .password-btn {
+            width: 100%;
+            padding: 13px 16px;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .password-error {
+            min-height: 24px;
+            color: #ff3b30;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        .cloud-status {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 6px 12px;
+            background: #f5f5f7;
+            border-radius: 999px;
+            color: #6e6e73;
+            font-size: 13px;
+        }
+
         @media (max-width: 1200px) {
             .container {
                 padding: 15px;
@@ -500,28 +478,20 @@
     </style>
 </head>
 <body>
-    <!-- 密码保护层 -->
-    <div id="passwordOverlay">
-        <div class="password-container">
-            <div class="lock-icon">🔐</div>
-            <h2>访问验证</h2>
-            <p>请输入密码以继续</p>
-            <div class="password-input-group">
-                <input 
-                    type="password" 
-                    id="passwordInput" 
-                    placeholder="请输入密码"
-                    autocomplete="off"
-                >
-                <div class="password-error" id="passwordError"></div>
-            </div>
-            <button id="passwordSubmit">确认</button>
+    <div class="password-overlay" id="passwordOverlay">
+        <div class="password-card">
+            <h2>HS编码查询系统</h2>
+            <p>请输入访问密码</p>
+            <input type="password" id="passwordInput" placeholder="访问密码">
+            <button class="password-btn" onclick="checkPassword()">进入</button>
+            <div class="password-error" id="passwordError"></div>
         </div>
     </div>
 
-    <div class="container">
+    <div class="container hidden" id="mainContent">
         <header>
             <h1>HS编码查询系统</h1>
+            <span class="cloud-status" id="cloudStatus">等待连接云端...</span>
         </header>
 
         <div class="search-section">
@@ -549,34 +519,13 @@
                     <tr id="tableHeader">
                         <th style="width: 30px;"></th>
                         <th style="width: 80px;">编号</th>
-                        <th style="width: 180px;" class="editable-header" data-field="类别">
-                            <span class="header-text">类别</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
-                        <th style="width: 220px;" class="editable-header" data-field="中英品名">
-                            <span class="header-text">中英品名</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
-                        <th style="width: 200px;" class="editable-header" data-field="材质/用途判断">
-                            <span class="header-text">材质/用途判断</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
-                        <th style="width: 100px;" class="editable-header" data-field="HS6">
-                            <span class="header-text">HS6</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
-                        <th style="width: 120px;" class="editable-header" data-field="10位申报">
-                            <span class="header-text">10位申报</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
-                        <th style="width: 100px;" class="editable-header" data-field="B3 Duty / MFN">
-                            <span class="header-text">税率</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
-                        <th style="width: 150px;" class="editable-header" data-field="口径">
-                            <span class="header-text">口径</span>
-                            <button class="edit-header-btn" title="编辑列名">✏️</button>
-                        </th>
+                        <th style="width: 180px;" class="editable-header" data-field="类别">类别 <button class="delete-col-btn" onclick="deleteColumn('类别')" title="删除此列">❌</button></th>
+                        <th style="width: 220px;" class="editable-header" data-field="中英品名">中英品名 <button class="delete-col-btn" onclick="deleteColumn('中英品名')" title="删除此列">❌</button></th>
+                        <th style="width: 200px;" class="editable-header" data-field="材质/用途判断">材质/用途判断 <button class="delete-col-btn" onclick="deleteColumn('材质/用途判断')" title="删除此列">❌</button></th>
+                        <th style="width: 100px;" class="editable-header" data-field="HS6">HS6 <button class="delete-col-btn" onclick="deleteColumn('HS6')" title="删除此列">❌</button></th>
+                        <th style="width: 120px;" class="editable-header" data-field="10位申报">10位申报 <button class="delete-col-btn" onclick="deleteColumn('10位申报')" title="删除此列">❌</button></th>
+                        <th style="width: 100px;" class="editable-header" data-field="B3 Duty / MFN">税率 <button class="delete-col-btn" onclick="deleteColumn('B3 Duty / MFN')" title="删除此列">❌</button></th>
+                        <th style="width: 150px;" class="editable-header" data-field="口径">口径 <button class="delete-col-btn" onclick="deleteColumn('口径')" title="删除此列">❌</button></th>
                         <th style="width: 50px;">操作</th>
                     </tr>
                 </thead>

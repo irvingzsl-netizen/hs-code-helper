@@ -1,77 +1,3 @@
-﻿// ========== 密码保护功能 ==========
-const CORRECT_PASSWORD = "1140";
-
-// 页面加载时检查密码状态
-document.addEventListener('DOMContentLoaded', function() {
-    const isAuthenticated = sessionStorage.getItem('authenticated');
-    
-    if (isAuthenticated === 'true') {
-        // 已验证，隐藏密码层
-        document.getElementById('passwordOverlay').classList.add('hidden');
-        initializeApp();
-    } else {
-        // 未验证，显示密码层并设置事件
-        setupPasswordValidation();
-    }
-});
-
-function setupPasswordValidation() {
-    const passwordInput = document.getElementById('passwordInput');
-    const passwordSubmit = document.getElementById('passwordSubmit');
-    const passwordError = document.getElementById('passwordError');
-
-    // 回车键提交
-    passwordInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            validatePassword();
-        }
-    });
-
-    // 按钮点击提交
-    passwordSubmit.addEventListener('click', validatePassword);
-
-    function validatePassword() {
-        const inputPassword = passwordInput.value;
-        
-        if (inputPassword === CORRECT_PASSWORD) {
-            // 密码正确
-            sessionStorage.setItem('authenticated', 'true');
-            document.getElementById('passwordOverlay').classList.add('hidden');
-            passwordInput.classList.remove('error');
-            passwordError.classList.remove('show');
-            initializeApp();
-        } else {
-            // 密码错误
-            passwordInput.classList.add('error');
-            passwordError.textContent = '密码错误，请重试';
-            passwordError.classList.add('show');
-            passwordInput.value = '';
-            
-            // 0.4秒后移除错误样式
-            setTimeout(() => {
-                passwordInput.classList.remove('error');
-            }, 400);
-        }
-    }
-
-    // 输入时清除错误提示
-    passwordInput.addEventListener('input', function() {
-        passwordError.classList.remove('show');
-    });
-}
-
-// 主应用初始化函数
-function initializeApp() {
-    // 调用原有的初始化逻辑
-    loadData();
-    renderCategoryFilters();
-    renderTableHeader();
-    renderTable();
-    document.getElementById('searchInput').addEventListener('input', handleSearch);
-}
-
-// ========== 数据和主要功能 ==========
-
 // 初始数据 - 完整200+条数据
 const initialData = [
     {"类别":"塑料制品","中英品名":"普通塑料日用品 / plastic general articles","材质/用途判断":"塑料；无明确餐厨/包装/文具用途","HS6":"3926.90","10位申报":"3926.90.99.90","B3 Duty / MFN":"6.5%","口径":"普通塑料杂项制品"},
@@ -310,46 +236,207 @@ const materialCategories = {
 // 数据版本号 - 每次更新数据时增加这个数字
 const DATA_VERSION = 2;
 
-// 初始化 (已合并到 initializeApp)
-// function init() {
-//     loadData();
-//     renderCategoryFilters();
-//     renderTableHeader();
-//     renderTable();
-//     document.getElementById('searchInput').addEventListener('input', handleSearch);
-// }
+// Firebase 配置 - 复刻旧网站的 REST API 保存方式
+// 说明：这里使用旧项目同一个 Firebase Database，但保存到 hsCodeSystem/state.json，避免覆盖旧网站的 items.json。
+const DATABASE_URL = "https://aoao-39647-default-rtdb.firebaseio.com";
+const DATABASE_PATH = "hsCodeSystem/state";
+const CORRECT_PASSWORD = "9919";
+const SYNC_INTERVAL_MS = 3000;
 
-// 加载数据
-function loadData() {
+let lastCloudSignature = '';
+let syncTimer = null;
+let isEditing = false;
+
+function getCloudUrl() {
+    return `${DATABASE_URL}/${DATABASE_PATH}.json`;
+}
+
+function makeStatePayload() {
+    return {
+        data: allData,
+        columns: columnOrder,
+        version: DATA_VERSION,
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function setCloudStatus(text) {
+    const statusEl = document.getElementById('cloudStatus');
+    if (statusEl) statusEl.textContent = text;
+}
+
+function showMainContent() {
+    const passwordOverlay = document.getElementById('passwordOverlay');
+    const mainContent = document.getElementById('mainContent');
+    if (passwordOverlay) passwordOverlay.classList.add('hidden');
+    if (mainContent) mainContent.classList.remove('hidden');
+    setTimeout(() => {
+        if (passwordOverlay) passwordOverlay.style.display = 'none';
+    }, 300);
+}
+
+// 密码验证：和旧网站一样，属于简单访问门槛，不是严格安全登录
+function checkPassword() {
+    const passwordInput = document.getElementById('passwordInput');
+    const passwordError = document.getElementById('passwordError');
+    if (!passwordInput) return;
+
+    if (passwordInput.value === CORRECT_PASSWORD) {
+        sessionStorage.setItem('hsAuthenticated', 'true');
+        showMainContent();
+        init();
+    } else {
+        if (passwordError) passwordError.textContent = '❌ 密码错误，请重试';
+        passwordInput.value = '';
+        passwordInput.focus();
+    }
+}
+
+function checkAuth() {
+    const isAuthenticated = sessionStorage.getItem('hsAuthenticated') === 'true';
+    const passwordInput = document.getElementById('passwordInput');
+
+    if (isAuthenticated) {
+        showMainContent();
+        init();
+    } else if (passwordInput) {
+        passwordInput.focus();
+        passwordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') checkPassword();
+        });
+    }
+}
+
+// 初始化
+async function init() {
+    await loadData();
+    renderCategoryFilters();
+    renderTableHeader();
+    renderTable();
+    document.getElementById('searchInput').addEventListener('input', handleSearch);
+    startRealtimeSync();
+}
+
+function loadLocalData() {
     const savedVersion = localStorage.getItem('hsCodeDataVersion');
     const savedData = localStorage.getItem('hsCodeData');
     const savedColumns = localStorage.getItem('hsCodeColumns');
-    
-    // 如果版本号不匹配，强制重新加载初始数据
+
     if (savedData && savedVersion == DATA_VERSION) {
         allData = JSON.parse(savedData);
     } else {
-        // 重新加载初始数据
         allData = initialData.map((item, index) => ({
             ...item,
             id: Date.now() + index,
             order: index
         }));
         localStorage.setItem('hsCodeDataVersion', DATA_VERSION);
-        saveData();
     }
-    
+
     if (savedColumns) {
         columnOrder = JSON.parse(savedColumns);
     }
-    
+
     filteredData = [...allData];
 }
 
-// 保存数据
-function saveData() {
+function saveLocalData() {
     localStorage.setItem('hsCodeData', JSON.stringify(allData));
     localStorage.setItem('hsCodeColumns', JSON.stringify(columnOrder));
+    localStorage.setItem('hsCodeDataVersion', DATA_VERSION);
+}
+
+// 加载数据：优先云端；云端没有时，用本地/初始数据并上传
+async function loadData() {
+    loadLocalData();
+    setCloudStatus('正在连接云端...');
+
+    try {
+        const response = await fetch(getCloudUrl());
+        const cloudState = await response.json();
+
+        if (cloudState && Array.isArray(cloudState.data)) {
+            allData = cloudState.data;
+            columnOrder = Array.isArray(cloudState.columns) && cloudState.columns.length
+                ? cloudState.columns
+                : columnOrder;
+            filteredData = [...allData];
+            saveLocalData();
+            lastCloudSignature = JSON.stringify({ data: allData, columns: columnOrder });
+            setCloudStatus('云端已同步');
+        } else {
+            await saveData();
+            setCloudStatus('已初始化云端数据');
+        }
+    } catch (error) {
+        console.warn('无法连接云端，使用本地数据：', error);
+        setCloudStatus('云端连接失败，当前使用本地数据');
+    }
+}
+
+// 保存数据：先存本地，再写入 Firebase
+async function saveData() {
+    saveLocalData();
+    const payload = makeStatePayload();
+    lastCloudSignature = JSON.stringify({ data: payload.data, columns: payload.columns });
+    setCloudStatus('正在保存...');
+
+    try {
+        const response = await fetch(getCloudUrl(), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            setCloudStatus('已保存到云端');
+        } else {
+            const errorText = await response.text();
+            console.error('云端保存失败：', response.status, errorText);
+            setCloudStatus('云端保存失败，本地已保存');
+        }
+    } catch (error) {
+        console.warn('无法连接云端，数据已保存到本地：', error);
+        setCloudStatus('云端连接失败，本地已保存');
+    }
+}
+
+// 多人同步：每3秒检查一次 Firebase 是否有新数据
+function startRealtimeSync() {
+    if (syncTimer) clearInterval(syncTimer);
+
+    syncTimer = setInterval(async () => {
+        if (isEditing) return;
+
+        try {
+            const response = await fetch(getCloudUrl());
+            const cloudState = await response.json();
+
+            if (!cloudState || !Array.isArray(cloudState.data)) return;
+
+            const cloudSignature = JSON.stringify({
+                data: cloudState.data,
+                columns: cloudState.columns || columnOrder
+            });
+
+            if (cloudSignature !== lastCloudSignature) {
+                allData = cloudState.data;
+                columnOrder = Array.isArray(cloudState.columns) && cloudState.columns.length
+                    ? cloudState.columns
+                    : columnOrder;
+                filteredData = [...allData];
+                saveLocalData();
+                lastCloudSignature = cloudSignature;
+
+                applyFilters();
+                renderTableHeader();
+                renderCategoryFilters();
+                setCloudStatus('检测到同事更新，已同步');
+            }
+        } catch (error) {
+            console.warn('同步失败：', error);
+        }
+    }, SYNC_INTERVAL_MS);
 }
 
 // 渲染类别筛选器
@@ -443,9 +530,9 @@ function renderTableHeader() {
         <th style="width: 30px;"></th>
         <th style="width: 80px;">编号</th>
         ${columnOrder.map(col => `
-            <th class="editable-header" data-field="${col}">
-                <span class="header-text">${col}</span>
-                <button class="edit-header-btn" onclick="event.stopPropagation(); editHeader(this.parentElement, '${col}')" title="编辑列名">✏️</button>
+            <th class="editable-header" data-field="${col}" onclick="editHeader(this, '${col}')">
+                ${col} 
+                <button class="delete-col-btn" onclick="event.stopPropagation(); deleteColumn('${col}')" title="删除此列">❌</button>
             </th>
         `).join('')}
         <th style="width: 50px;">操作</th>
@@ -685,6 +772,7 @@ function searchByKeyword(keyword) {
 
 // 编辑单元格
 function editCell(cell, id, field) {
+    isEditing = true;
     const item = allData.find(i => i.id === id);
     if (!item) return;
     
@@ -704,12 +792,14 @@ function editCell(cell, id, field) {
         } else {
             renderTable();
         }
+        isEditing = false;
     };
     
     input.onkeydown = (e) => {
         if (e.key === 'Enter' && !isTextarea) {
             input.blur();
         } else if (e.key === 'Escape') {
+            isEditing = false;
             renderTable();
         }
     };
@@ -722,36 +812,20 @@ function editCell(cell, id, field) {
 
 // 编辑表头
 function editHeader(th, oldName) {
-    // 防止重复编辑
-    if (th.querySelector('input')) return;
-    
+    isEditing = true;
     const input = document.createElement('input');
     input.type = 'text';
     input.value = oldName;
     input.style.width = '100%';
     
-    let isSubmitting = false;
-    
-    const submitEdit = () => {
-        if (isSubmitting) return;
-        isSubmitting = true;
-        
+    input.onblur = () => {
         const newName = input.value.trim();
         if (newName && newName !== oldName) {
-            // 检查列名是否已存在
-            if (columnOrder.includes(newName)) {
-                alert('该列名已存在！');
-                renderTableHeader();
-                return;
-            }
-            
-            // 更新列顺序
             const index = columnOrder.indexOf(oldName);
             if (index !== -1) {
                 columnOrder[index] = newName;
             }
             
-            // 更新所有数据中的字段名
             allData = allData.map(item => {
                 const newItem = { ...item };
                 if (oldName in newItem) {
@@ -761,7 +835,6 @@ function editHeader(th, oldName) {
                 return newItem;
             });
             
-            // 保存并重新渲染
             saveData();
             renderTableHeader();
             renderTable();
@@ -769,25 +842,15 @@ function editHeader(th, oldName) {
         } else {
             renderTableHeader();
         }
-    };
-    
-    const cancelEdit = () => {
-        if (isSubmitting) return;
-        renderTableHeader();
-    };
-    
-    input.onblur = () => {
-        // 延迟执行，避免与点击事件冲突
-        setTimeout(submitEdit, 100);
+        isEditing = false;
     };
     
     input.onkeydown = (e) => {
         if (e.key === 'Enter') {
-            e.preventDefault();
-            submitEdit();
+            input.blur();
         } else if (e.key === 'Escape') {
-            e.preventDefault();
-            cancelEdit();
+            isEditing = false;
+            renderTableHeader();
         }
     };
     
@@ -795,6 +858,24 @@ function editHeader(th, oldName) {
     th.appendChild(input);
     input.focus();
     input.select();
+}
+
+// 删除列
+function deleteColumn(colName) {
+    if (!confirm(`确定要删除"${colName}"这一列吗？`)) return;
+    
+    columnOrder = columnOrder.filter(col => col !== colName);
+    
+    allData = allData.map(item => {
+        const newItem = { ...item };
+        delete newItem[colName];
+        return newItem;
+    });
+    
+    saveData();
+    renderTableHeader();
+    renderTable();
+    renderCategoryFilters();
 }
 
 // 添加新列
@@ -853,3 +934,5 @@ function addNewItem() {
     applyFilters();
     renderCategoryFilters();
 }
+
+document.addEventListener('DOMContentLoaded', checkAuth);
