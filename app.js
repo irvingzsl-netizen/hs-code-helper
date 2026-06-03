@@ -1018,9 +1018,11 @@ function editHeader(th, oldName) {
             });
             
             // 保存并重新渲染
+            // 注意：重命名列后 allData 已经被重新生成，filteredData 仍可能指向旧对象。
+            // 必须重新执行 applyFilters()，否则表格会用旧 filteredData 渲染，导致新列名下面显示空白。
             saveData();
             renderTableHeader();
-            renderTable();
+            applyFilters();
             renderCategoryFilters();
         } else {
             renderTableHeader();
