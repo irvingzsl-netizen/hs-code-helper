@@ -443,9 +443,9 @@ function renderTableHeader() {
         <th style="width: 30px;"></th>
         <th style="width: 80px;">编号</th>
         ${columnOrder.map(col => `
-            <th class="editable-header" data-field="${col}" onclick="editHeader(this, '${col}')">
-                ${col} 
-                <button class="delete-col-btn" onclick="event.stopPropagation(); deleteColumn('${col}')" title="删除此列">❌</button>
+            <th class="editable-header" data-field="${col}">
+                <span class="header-text">${col}</span>
+                <button class="edit-header-btn" onclick="event.stopPropagation(); editHeader(this.parentElement, '${col}')" title="编辑列名">✏️</button>
             </th>
         `).join('')}
         <th style="width: 50px;">操作</th>
@@ -722,19 +722,36 @@ function editCell(cell, id, field) {
 
 // 编辑表头
 function editHeader(th, oldName) {
+    // 防止重复编辑
+    if (th.querySelector('input')) return;
+    
     const input = document.createElement('input');
     input.type = 'text';
     input.value = oldName;
     input.style.width = '100%';
     
-    input.onblur = () => {
+    let isSubmitting = false;
+    
+    const submitEdit = () => {
+        if (isSubmitting) return;
+        isSubmitting = true;
+        
         const newName = input.value.trim();
         if (newName && newName !== oldName) {
+            // 检查列名是否已存在
+            if (columnOrder.includes(newName)) {
+                alert('该列名已存在！');
+                renderTableHeader();
+                return;
+            }
+            
+            // 更新列顺序
             const index = columnOrder.indexOf(oldName);
             if (index !== -1) {
                 columnOrder[index] = newName;
             }
             
+            // 更新所有数据中的字段名
             allData = allData.map(item => {
                 const newItem = { ...item };
                 if (oldName in newItem) {
@@ -744,6 +761,7 @@ function editHeader(th, oldName) {
                 return newItem;
             });
             
+            // 保存并重新渲染
             saveData();
             renderTableHeader();
             renderTable();
@@ -753,11 +771,23 @@ function editHeader(th, oldName) {
         }
     };
     
+    const cancelEdit = () => {
+        if (isSubmitting) return;
+        renderTableHeader();
+    };
+    
+    input.onblur = () => {
+        // 延迟执行，避免与点击事件冲突
+        setTimeout(submitEdit, 100);
+    };
+    
     input.onkeydown = (e) => {
         if (e.key === 'Enter') {
-            input.blur();
+            e.preventDefault();
+            submitEdit();
         } else if (e.key === 'Escape') {
-            renderTableHeader();
+            e.preventDefault();
+            cancelEdit();
         }
     };
     
@@ -765,24 +795,6 @@ function editHeader(th, oldName) {
     th.appendChild(input);
     input.focus();
     input.select();
-}
-
-// 删除列
-function deleteColumn(colName) {
-    if (!confirm(`确定要删除"${colName}"这一列吗？`)) return;
-    
-    columnOrder = columnOrder.filter(col => col !== colName);
-    
-    allData = allData.map(item => {
-        const newItem = { ...item };
-        delete newItem[colName];
-        return newItem;
-    });
-    
-    saveData();
-    renderTableHeader();
-    renderTable();
-    renderCategoryFilters();
 }
 
 // 添加新列
