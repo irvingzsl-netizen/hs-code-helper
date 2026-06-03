@@ -71,7 +71,13 @@ let dataRef = null;
 // 检测是否通过 HTTP 访问
 if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
     // 通过 HTTP 访问，启用 Firebase
+    console.log('🌐 检测到 HTTPS/HTTP 协议，准备启用 Firebase...');
+    
     try {
+        if (typeof firebase === 'undefined') {
+            throw new Error('Firebase SDK 未加载');
+        }
+        
         const firebaseConfig = {
             apiKey: "AIzaSyB5zN9eVQGRqfvK3oGNEh23QuOMnbQRTSY",
             authDomain: "aoao-39647.firebaseapp.com",
@@ -82,18 +88,20 @@ if (window.location.protocol === 'http:' || window.location.protocol === 'https:
             appId: "1:590332138066:web:d7938057f5edf53f91458b"
         };
         
+        console.log('🔧 正在初始化 Firebase...');
         firebase.initializeApp(firebaseConfig);
         database = firebase.database();
         dataRef = database.ref('hsCodeData');
         firebaseEnabled = true;
-        console.log('✅ Firebase 已启用（多人协同模式）');
+        console.log('✅ Firebase 初始化成功（多人协同模式已启用）');
     } catch (error) {
-        console.warn('⚠️ Firebase 初始化失败，使用本地存储模式:', error);
+        console.error('❌ Firebase 初始化失败:', error);
+        console.error('错误详情:', error.message);
         firebaseEnabled = false;
     }
 } else {
     // 直接打开文件，使用本地存储
-    console.log('📁 本地存储模式 - 双击"启动服务器.bat"开启多人协同');
+    console.log('📁 本地文件模式 - 使用本地存储');
     firebaseEnabled = false;
 }
 
