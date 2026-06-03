@@ -7,27 +7,46 @@ function updateSyncStatus(status, message) {
     if (!syncIcon || !syncText || !syncStatus) return;
     
     switch(status) {
+        case 'local':
+            syncIcon.textContent = '💾';
+            syncText.textContent = '本地模式 · 双击"启动服务器.bat"开启协同';
+            syncStatus.style.background = '#fff3cd';
+            syncStatus.style.color = '#856404';
+            syncStatus.style.cursor = 'pointer';
+            syncStatus.title = '点击查看如何启用多人协同';
+            syncStatus.onclick = () => {
+                alert('📝 启用多人协同的步骤：\n\n1. 关闭此网页\n2. 双击"启动服务器.bat"文件\n3. 在浏览器中打开显示的地址\n\n同事也可以通过你的电脑IP访问！');
+            };
+            break;
         case 'connecting':
             syncIcon.textContent = '🔄';
             syncText.textContent = message || '正在连接...';
             syncStatus.style.background = '#f0f0f0';
+            syncStatus.style.cursor = 'default';
+            syncStatus.onclick = null;
             break;
         case 'connected':
             syncIcon.textContent = '✅';
             syncText.textContent = message || '已连接 · 多人协同';
             syncStatus.style.background = '#d4edda';
             syncStatus.style.color = '#155724';
+            syncStatus.style.cursor = 'default';
+            syncStatus.onclick = null;
             break;
         case 'syncing':
             syncIcon.textContent = '⬆️';
             syncText.textContent = message || '正在同步...';
             syncStatus.style.background = '#fff3cd';
+            syncStatus.style.cursor = 'default';
+            syncStatus.onclick = null;
             break;
         case 'synced':
             syncIcon.textContent = '✅';
             syncText.textContent = message || '已同步';
             syncStatus.style.background = '#d4edda';
             syncStatus.style.color = '#155724';
+            syncStatus.style.cursor = 'default';
+            syncStatus.onclick = null;
             setTimeout(() => {
                 updateSyncStatus('connected', '已连接 · 多人协同');
             }, 2000);
@@ -37,25 +56,46 @@ function updateSyncStatus(status, message) {
             syncText.textContent = message || '连接失败 · 仅本地';
             syncStatus.style.background = '#f8d7da';
             syncStatus.style.color = '#721c24';
+            syncStatus.style.cursor = 'default';
+            syncStatus.onclick = null;
             break;
     }
 }
 
 // ========== Firebase 配置和初始化 ==========
-const firebaseConfig = {
-    apiKey: "AIzaSyB5zN9eVQGRqfvK3oGNEh23QuOMnbQRTSY",
-    authDomain: "aoao-39647.firebaseapp.com",
-    databaseURL: "https://aoao-39647-default-rtdb.firebaseio.com",
-    projectId: "aoao-39647",
-    storageBucket: "aoao-39647.firebasestorage.app",
-    messagingSenderId: "590332138066",
-    appId: "1:590332138066:web:d7938057f5edf53f91458b"
-};
+// Firebase 功能可选：通过 HTTP 访问时自动启用，file:// 协议时使用本地存储
+let firebaseEnabled = false;
+let database = null;
+let dataRef = null;
 
-// 初始化 Firebase
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-const dataRef = database.ref('hsCodeData');
+// 检测是否通过 HTTP 访问
+if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+    // 通过 HTTP 访问，启用 Firebase
+    try {
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5zN9eVQGRqfvK3oGNEh23QuOMnbQRTSY",
+            authDomain: "aoao-39647.firebaseapp.com",
+            databaseURL: "https://aoao-39647-default-rtdb.firebaseio.com",
+            projectId: "aoao-39647",
+            storageBucket: "aoao-39647.firebasestorage.app",
+            messagingSenderId: "590332138066",
+            appId: "1:590332138066:web:d7938057f5edf53f91458b"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        dataRef = database.ref('hsCodeData');
+        firebaseEnabled = true;
+        console.log('✅ Firebase 已启用（多人协同模式）');
+    } catch (error) {
+        console.warn('⚠️ Firebase 初始化失败，使用本地存储模式:', error);
+        firebaseEnabled = false;
+    }
+} else {
+    // 直接打开文件，使用本地存储
+    console.log('📁 本地存储模式 - 双击"启动服务器.bat"开启多人协同');
+    firebaseEnabled = false;
+}
 
 // ========== 密码保护功能 ==========
 const CORRECT_PASSWORD = "1140";
@@ -375,8 +415,16 @@ const DATA_VERSION = 2;
 //     document.getElementById('searchInput').addEventListener('input', handleSearch);
 // }
 
-// 加载数据 - 从 Firebase 同步
+// 加载数据 - 从 Firebase 同步或本地存储
 function loadData() {
+    if (!firebaseEnabled) {
+        // 本地模式
+        console.log('📁 使用本地存储模式');
+        updateSyncStatus('local');
+        loadLocalData();
+        return;
+    }
+    
     console.log('🔄 正在从 Firebase 加载数据...');
     updateSyncStatus('connecting', '正在连接...');
     
@@ -422,59 +470,67 @@ function loadData() {
     }).catch((error) => {
         console.error('❌ Firebase 加载失败，使用本地缓存:', error);
         updateSyncStatus('error', '连接失败 · 仅本地');
-        // Firebase 失败，使用本地缓存
-        const savedData = localStorage.getItem('hsCodeData');
-        const savedColumns = localStorage.getItem('hsCodeColumns');
-        
-        if (savedData) {
-            allData = JSON.parse(savedData);
-        } else {
-            allData = initialData.map((item, index) => ({
-                ...item,
-                id: Date.now() + index,
-                order: index
-            }));
-        }
-        
-        if (savedColumns) {
-            columnOrder = JSON.parse(savedColumns);
-        }
-        
-        filteredData = [...allData];
-        renderCategoryFilters();
-        renderTableHeader();
-        renderTable();
+        loadLocalData();
     });
 }
 
-// 保存数据 - 同步到 Firebase
+// 从本地存储加载数据
+function loadLocalData() {
+    const savedData = localStorage.getItem('hsCodeData');
+    const savedColumns = localStorage.getItem('hsCodeColumns');
+    
+    if (savedData) {
+        allData = JSON.parse(savedData);
+    } else {
+        allData = initialData.map((item, index) => ({
+            ...item,
+            id: Date.now() + index,
+            order: index
+        }));
+    }
+    
+    if (savedColumns) {
+        columnOrder = JSON.parse(savedColumns);
+    }
+    
+    filteredData = [...allData];
+    renderCategoryFilters();
+    renderTableHeader();
+    renderTable();
+}
+
+// 保存数据 - 同步到 Firebase 或本地存储
 function saveData() {
     // 保存到本地
     localStorage.setItem('hsCodeData', JSON.stringify(allData));
     localStorage.setItem('hsCodeColumns', JSON.stringify(columnOrder));
     
-    // 同步到 Firebase
-    updateSyncStatus('syncing', '正在同步...');
-    const dataToSave = {
-        data: allData,
-        columns: columnOrder,
-        lastModified: Date.now()
-    };
-    
-    dataRef.set(dataToSave)
-        .then(() => {
-            console.log('✅ 数据已同步到 Firebase');
-            updateSyncStatus('synced', '已同步');
-        })
-        .catch((error) => {
-            console.error('❌ Firebase 同步失败:', error);
-            updateSyncStatus('error', '同步失败');
-        });
+    // 如果 Firebase 已启用，同步到云端
+    if (firebaseEnabled && dataRef) {
+        updateSyncStatus('syncing', '正在同步...');
+        const dataToSave = {
+            data: allData,
+            columns: columnOrder,
+            lastModified: Date.now()
+        };
+        
+        dataRef.set(dataToSave)
+            .then(() => {
+                console.log('✅ 数据已同步到 Firebase');
+                updateSyncStatus('synced', '已同步');
+            })
+            .catch((error) => {
+                console.error('❌ Firebase 同步失败:', error);
+                updateSyncStatus('error', '同步失败');
+            });
+    }
 }
 
 // 设置实时同步监听
 let isLocalChange = false;
 function setupRealtimeSync() {
+    if (!firebaseEnabled || !dataRef) return;
+    
     dataRef.on('value', (snapshot) => {
         if (isLocalChange) {
             // 如果是本地修改触发的，忽略
