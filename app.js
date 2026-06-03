@@ -1,3 +1,136 @@
+﻿// 更新同步状态显示
+function updateSyncStatus(status, message) {
+    const syncIcon = document.getElementById('syncIcon');
+    const syncText = document.getElementById('syncText');
+    const syncStatus = document.getElementById('syncStatus');
+    
+    if (!syncIcon || !syncText || !syncStatus) return;
+    
+    switch(status) {
+        case 'connecting':
+            syncIcon.textContent = '🔄';
+            syncText.textContent = message || '正在连接...';
+            syncStatus.style.background = '#f0f0f0';
+            break;
+        case 'connected':
+            syncIcon.textContent = '✅';
+            syncText.textContent = message || '已连接 · 多人协同';
+            syncStatus.style.background = '#d4edda';
+            syncStatus.style.color = '#155724';
+            break;
+        case 'syncing':
+            syncIcon.textContent = '⬆️';
+            syncText.textContent = message || '正在同步...';
+            syncStatus.style.background = '#fff3cd';
+            break;
+        case 'synced':
+            syncIcon.textContent = '✅';
+            syncText.textContent = message || '已同步';
+            syncStatus.style.background = '#d4edda';
+            syncStatus.style.color = '#155724';
+            setTimeout(() => {
+                updateSyncStatus('connected', '已连接 · 多人协同');
+            }, 2000);
+            break;
+        case 'error':
+            syncIcon.textContent = '⚠️';
+            syncText.textContent = message || '连接失败 · 仅本地';
+            syncStatus.style.background = '#f8d7da';
+            syncStatus.style.color = '#721c24';
+            break;
+    }
+}
+
+// ========== Firebase 配置和初始化 ==========
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyB5zN9eVQGRqfvK3oGNEh23QuOMnbQRTSY",
+    authDomain: "aoao-39647.firebaseapp.com",
+    databaseURL: "https://aoao-39647-default-rtdb.firebaseio.com",
+    projectId: "aoao-39647",
+    storageBucket: "aoao-39647.firebasestorage.app",
+    messagingSenderId: "590332138066",
+    appId: "1:590332138066:web:d7938057f5edf53f91458b"
+};
+
+// 初始化 Firebase
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+const dataRef = ref(database, 'hsCodeData');
+
+// ========== 密码保护功能 ==========
+const CORRECT_PASSWORD = "1140";
+
+// 页面加载时检查密码状态
+document.addEventListener('DOMContentLoaded', function() {
+    const isAuthenticated = sessionStorage.getItem('authenticated');
+    
+    if (isAuthenticated === 'true') {
+        // 已验证，隐藏密码层
+        document.getElementById('passwordOverlay').classList.add('hidden');
+        initializeApp();
+    } else {
+        // 未验证，显示密码层并设置事件
+        setupPasswordValidation();
+    }
+});
+
+function setupPasswordValidation() {
+    const passwordInput = document.getElementById('passwordInput');
+    const passwordSubmit = document.getElementById('passwordSubmit');
+    const passwordError = document.getElementById('passwordError');
+
+    // 回车键提交
+    passwordInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            validatePassword();
+        }
+    });
+
+    // 按钮点击提交
+    passwordSubmit.addEventListener('click', validatePassword);
+
+    function validatePassword() {
+        const inputPassword = passwordInput.value;
+        
+        if (inputPassword === CORRECT_PASSWORD) {
+            // 密码正确
+            sessionStorage.setItem('authenticated', 'true');
+            document.getElementById('passwordOverlay').classList.add('hidden');
+            passwordInput.classList.remove('error');
+            passwordError.classList.remove('show');
+            initializeApp();
+        } else {
+            // 密码错误
+            passwordInput.classList.add('error');
+            passwordError.textContent = '密码错误，请重试';
+            passwordError.classList.add('show');
+            passwordInput.value = '';
+            
+            // 0.4秒后移除错误样式
+            setTimeout(() => {
+                passwordInput.classList.remove('error');
+            }, 400);
+        }
+    }
+
+    // 输入时清除错误提示
+    passwordInput.addEventListener('input', function() {
+        passwordError.classList.remove('show');
+    });
+}
+
+// 主应用初始化函数
+function initializeApp() {
+    // 调用原有的初始化逻辑
+    loadData(); // Firebase 会在内部处理渲染
+    document.getElementById('searchInput').addEventListener('input', handleSearch);
+}
+
+// ========== 数据和主要功能 ==========
+
 // 初始数据 - 完整200+条数据
 const initialData = [
     {"类别":"塑料制品","中英品名":"普通塑料日用品 / plastic general articles","材质/用途判断":"塑料；无明确餐厨/包装/文具用途","HS6":"3926.90","10位申报":"3926.90.99.90","B3 Duty / MFN":"6.5%","口径":"普通塑料杂项制品"},
@@ -236,208 +369,147 @@ const materialCategories = {
 // 数据版本号 - 每次更新数据时增加这个数字
 const DATA_VERSION = 2;
 
-// Firebase 配置 - 复刻旧网站的 REST API 保存方式
-// 说明：这里使用旧项目同一个 Firebase Database，但保存到 hsCodeSystem/state.json，避免覆盖旧网站的 items.json。
-const DATABASE_URL = "https://aoao-39647-default-rtdb.firebaseio.com";
-const DATABASE_PATH = "hsCodeSystem/state";
-const CORRECT_PASSWORD = "1140";
-const SYNC_INTERVAL_MS = 3000;
+// 初始化 (已合并到 initializeApp)
+// function init() {
+//     loadData();
+//     renderCategoryFilters();
+//     renderTableHeader();
+//     renderTable();
+//     document.getElementById('searchInput').addEventListener('input', handleSearch);
+// }
 
-let lastCloudSignature = '';
-let syncTimer = null;
-let isEditing = false;
-
-function getCloudUrl() {
-    return `${DATABASE_URL}/${DATABASE_PATH}.json`;
+// 加载数据 - 从 Firebase 同步
+function loadData() {
+    console.log('🔄 正在从 Firebase 加载数据...');
+    updateSyncStatus('connecting', '正在连接...');
+    
+    // 先从 Firebase 获取数据
+    get(dataRef).then((snapshot) => {
+        if (snapshot.exists()) {
+            const firebaseData = snapshot.val();
+            console.log('✅ 从 Firebase 加载数据成功');
+            updateSyncStatus('connected', '已连接 · 多人协同');
+            
+            allData = firebaseData.data || initialData.map((item, index) => ({
+                ...item,
+                id: Date.now() + index,
+                order: index
+            }));
+            
+            columnOrder = firebaseData.columns || columnOrder;
+            
+            // 同时保存到本地缓存
+            localStorage.setItem('hsCodeData', JSON.stringify(allData));
+            localStorage.setItem('hsCodeColumns', JSON.stringify(columnOrder));
+        } else {
+            console.log('⚠️ Firebase 中无数据，使用初始数据');
+            updateSyncStatus('syncing', '正在初始化...');
+            // Firebase 中没有数据，使用初始数据并上传
+            allData = initialData.map((item, index) => ({
+                ...item,
+                id: Date.now() + index,
+                order: index
+            }));
+            saveData(); // 上传到 Firebase
+            updateSyncStatus('connected', '已连接 · 多人协同');
+        }
+        
+        filteredData = [...allData];
+        renderCategoryFilters();
+        renderTableHeader();
+        renderTable();
+        
+        // 监听 Firebase 数据变化（实时同步）
+        setupRealtimeSync();
+        
+    }).catch((error) => {
+        console.error('❌ Firebase 加载失败，使用本地缓存:', error);
+        updateSyncStatus('error', '连接失败 · 仅本地');
+        // Firebase 失败，使用本地缓存
+        const savedData = localStorage.getItem('hsCodeData');
+        const savedColumns = localStorage.getItem('hsCodeColumns');
+        
+        if (savedData) {
+            allData = JSON.parse(savedData);
+        } else {
+            allData = initialData.map((item, index) => ({
+                ...item,
+                id: Date.now() + index,
+                order: index
+            }));
+        }
+        
+        if (savedColumns) {
+            columnOrder = JSON.parse(savedColumns);
+        }
+        
+        filteredData = [...allData];
+        renderCategoryFilters();
+        renderTableHeader();
+        renderTable();
+    });
 }
 
-function makeStatePayload() {
-    return {
-        data: allData,
-        columns: columnOrder,
-        version: DATA_VERSION,
-        updatedAt: new Date().toISOString()
-    };
-}
-
-function setCloudStatus(text) {
-    const statusEl = document.getElementById('cloudStatus');
-    if (statusEl) statusEl.textContent = text;
-}
-
-function showMainContent() {
-    const passwordOverlay = document.getElementById('passwordOverlay');
-    const mainContent = document.getElementById('mainContent');
-    if (passwordOverlay) passwordOverlay.classList.add('hidden');
-    if (mainContent) mainContent.classList.remove('hidden');
-    setTimeout(() => {
-        if (passwordOverlay) passwordOverlay.style.display = 'none';
-    }, 300);
-}
-
-// 密码验证：和旧网站一样，属于简单访问门槛，不是严格安全登录
-function checkPassword() {
-    const passwordInput = document.getElementById('passwordInput');
-    const passwordError = document.getElementById('passwordError');
-    if (!passwordInput) return;
-
-    if (passwordInput.value === CORRECT_PASSWORD) {
-        sessionStorage.setItem('hsAuthenticated', 'true');
-        showMainContent();
-        init();
-    } else {
-        if (passwordError) passwordError.textContent = '❌ 密码错误，请重试';
-        passwordInput.value = '';
-        passwordInput.focus();
-    }
-}
-
-function checkAuth() {
-    const isAuthenticated = sessionStorage.getItem('hsAuthenticated') === 'true';
-    const passwordInput = document.getElementById('passwordInput');
-
-    if (isAuthenticated) {
-        showMainContent();
-        init();
-    } else if (passwordInput) {
-        passwordInput.focus();
-        passwordInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') checkPassword();
-        });
-    }
-}
-
-// 初始化
-async function init() {
-    await loadData();
-    renderCategoryFilters();
-    renderTableHeader();
-    renderTable();
-    document.getElementById('searchInput').addEventListener('input', handleSearch);
-    startRealtimeSync();
-}
-
-function loadLocalData() {
-    const savedVersion = localStorage.getItem('hsCodeDataVersion');
-    const savedData = localStorage.getItem('hsCodeData');
-    const savedColumns = localStorage.getItem('hsCodeColumns');
-
-    if (savedData && savedVersion == DATA_VERSION) {
-        allData = JSON.parse(savedData);
-    } else {
-        allData = initialData.map((item, index) => ({
-            ...item,
-            id: Date.now() + index,
-            order: index
-        }));
-        localStorage.setItem('hsCodeDataVersion', DATA_VERSION);
-    }
-
-    if (savedColumns) {
-        columnOrder = JSON.parse(savedColumns);
-    }
-
-    filteredData = [...allData];
-}
-
-function saveLocalData() {
+// 保存数据 - 同步到 Firebase
+function saveData() {
+    // 保存到本地
     localStorage.setItem('hsCodeData', JSON.stringify(allData));
     localStorage.setItem('hsCodeColumns', JSON.stringify(columnOrder));
-    localStorage.setItem('hsCodeDataVersion', DATA_VERSION);
-}
-
-// 加载数据：优先云端；云端没有时，用本地/初始数据并上传
-async function loadData() {
-    loadLocalData();
-    setCloudStatus('正在连接云端...');
-
-    try {
-        const response = await fetch(getCloudUrl());
-        const cloudState = await response.json();
-
-        if (cloudState && Array.isArray(cloudState.data)) {
-            allData = cloudState.data;
-            columnOrder = Array.isArray(cloudState.columns) && cloudState.columns.length
-                ? cloudState.columns
-                : columnOrder;
-            filteredData = [...allData];
-            saveLocalData();
-            lastCloudSignature = JSON.stringify({ data: allData, columns: columnOrder });
-            setCloudStatus('云端已同步');
-        } else {
-            await saveData();
-            setCloudStatus('已初始化云端数据');
-        }
-    } catch (error) {
-        console.warn('无法连接云端，使用本地数据：', error);
-        setCloudStatus('云端连接失败，当前使用本地数据');
-    }
-}
-
-// 保存数据：先存本地，再写入 Firebase
-async function saveData() {
-    saveLocalData();
-    const payload = makeStatePayload();
-    lastCloudSignature = JSON.stringify({ data: payload.data, columns: payload.columns });
-    setCloudStatus('正在保存...');
-
-    try {
-        const response = await fetch(getCloudUrl(), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+    
+    // 同步到 Firebase
+    updateSyncStatus('syncing', '正在同步...');
+    const dataToSave = {
+        data: allData,
+        columns: columnOrder,
+        lastModified: Date.now()
+    };
+    
+    set(dataRef, dataToSave)
+        .then(() => {
+            console.log('✅ 数据已同步到 Firebase');
+            updateSyncStatus('synced', '已同步');
+        })
+        .catch((error) => {
+            console.error('❌ Firebase 同步失败:', error);
+            updateSyncStatus('error', '同步失败');
         });
-
-        if (response.ok) {
-            setCloudStatus('已保存到云端');
-        } else {
-            const errorText = await response.text();
-            console.error('云端保存失败：', response.status, errorText);
-            setCloudStatus('云端保存失败，本地已保存');
-        }
-    } catch (error) {
-        console.warn('无法连接云端，数据已保存到本地：', error);
-        setCloudStatus('云端连接失败，本地已保存');
-    }
 }
 
-// 多人同步：每3秒检查一次 Firebase 是否有新数据
-function startRealtimeSync() {
-    if (syncTimer) clearInterval(syncTimer);
-
-    syncTimer = setInterval(async () => {
-        if (isEditing) return;
-
-        try {
-            const response = await fetch(getCloudUrl());
-            const cloudState = await response.json();
-
-            if (!cloudState || !Array.isArray(cloudState.data)) return;
-
-            const cloudSignature = JSON.stringify({
-                data: cloudState.data,
-                columns: cloudState.columns || columnOrder
-            });
-
-            if (cloudSignature !== lastCloudSignature) {
-                allData = cloudState.data;
-                columnOrder = Array.isArray(cloudState.columns) && cloudState.columns.length
-                    ? cloudState.columns
-                    : columnOrder;
-                filteredData = [...allData];
-                saveLocalData();
-                lastCloudSignature = cloudSignature;
-
-                applyFilters();
-                renderTableHeader();
-                renderCategoryFilters();
-                setCloudStatus('检测到同事更新，已同步');
-            }
-        } catch (error) {
-            console.warn('同步失败：', error);
+// 设置实时同步监听
+let isLocalChange = false;
+function setupRealtimeSync() {
+    onValue(dataRef, (snapshot) => {
+        if (isLocalChange) {
+            // 如果是本地修改触发的，忽略
+            isLocalChange = false;
+            return;
         }
-    }, SYNC_INTERVAL_MS);
+        
+        if (snapshot.exists()) {
+            const firebaseData = snapshot.val();
+            console.log('🔄 检测到其他用户的更改，正在同步...');
+            
+            allData = firebaseData.data || allData;
+            columnOrder = firebaseData.columns || columnOrder;
+            
+            // 更新本地缓存
+            localStorage.setItem('hsCodeData', JSON.stringify(allData));
+            localStorage.setItem('hsCodeColumns', JSON.stringify(columnOrder));
+            
+            // 重新渲染
+            applyFilters();
+            renderCategoryFilters();
+            renderTableHeader();
+        }
+    });
 }
+
+// 修改原 saveData，标记为本地修改
+const originalSaveData = saveData;
+window.saveData = function() {
+    isLocalChange = true;
+    originalSaveData();
+};
 
 // 渲染类别筛选器
 function renderCategoryFilters() {
@@ -530,9 +602,9 @@ function renderTableHeader() {
         <th style="width: 30px;"></th>
         <th style="width: 80px;">编号</th>
         ${columnOrder.map(col => `
-            <th class="editable-header" data-field="${col}" onclick="editHeader(this, '${col}')">
-                ${col} 
-                <button class="delete-col-btn" onclick="event.stopPropagation(); deleteColumn('${col}')" title="删除此列">❌</button>
+            <th class="editable-header" data-field="${col}">
+                <span class="header-text">${col}</span>
+                <button class="edit-header-btn" onclick="event.stopPropagation(); editHeader(this.parentElement, '${col}')" title="编辑列名">✏️</button>
             </th>
         `).join('')}
         <th style="width: 50px;">操作</th>
@@ -772,7 +844,6 @@ function searchByKeyword(keyword) {
 
 // 编辑单元格
 function editCell(cell, id, field) {
-    isEditing = true;
     const item = allData.find(i => i.id === id);
     if (!item) return;
     
@@ -792,14 +863,12 @@ function editCell(cell, id, field) {
         } else {
             renderTable();
         }
-        isEditing = false;
     };
     
     input.onkeydown = (e) => {
         if (e.key === 'Enter' && !isTextarea) {
             input.blur();
         } else if (e.key === 'Escape') {
-            isEditing = false;
             renderTable();
         }
     };
@@ -812,20 +881,36 @@ function editCell(cell, id, field) {
 
 // 编辑表头
 function editHeader(th, oldName) {
-    isEditing = true;
+    // 防止重复编辑
+    if (th.querySelector('input')) return;
+    
     const input = document.createElement('input');
     input.type = 'text';
     input.value = oldName;
     input.style.width = '100%';
     
-    input.onblur = () => {
+    let isSubmitting = false;
+    
+    const submitEdit = () => {
+        if (isSubmitting) return;
+        isSubmitting = true;
+        
         const newName = input.value.trim();
         if (newName && newName !== oldName) {
+            // 检查列名是否已存在
+            if (columnOrder.includes(newName)) {
+                alert('该列名已存在！');
+                renderTableHeader();
+                return;
+            }
+            
+            // 更新列顺序
             const index = columnOrder.indexOf(oldName);
             if (index !== -1) {
                 columnOrder[index] = newName;
             }
             
+            // 更新所有数据中的字段名
             allData = allData.map(item => {
                 const newItem = { ...item };
                 if (oldName in newItem) {
@@ -835,6 +920,7 @@ function editHeader(th, oldName) {
                 return newItem;
             });
             
+            // 保存并重新渲染
             saveData();
             renderTableHeader();
             renderTable();
@@ -842,15 +928,25 @@ function editHeader(th, oldName) {
         } else {
             renderTableHeader();
         }
-        isEditing = false;
+    };
+    
+    const cancelEdit = () => {
+        if (isSubmitting) return;
+        renderTableHeader();
+    };
+    
+    input.onblur = () => {
+        // 延迟执行，避免与点击事件冲突
+        setTimeout(submitEdit, 100);
     };
     
     input.onkeydown = (e) => {
         if (e.key === 'Enter') {
-            input.blur();
+            e.preventDefault();
+            submitEdit();
         } else if (e.key === 'Escape') {
-            isEditing = false;
-            renderTableHeader();
+            e.preventDefault();
+            cancelEdit();
         }
     };
     
@@ -858,24 +954,6 @@ function editHeader(th, oldName) {
     th.appendChild(input);
     input.focus();
     input.select();
-}
-
-// 删除列
-function deleteColumn(colName) {
-    if (!confirm(`确定要删除"${colName}"这一列吗？`)) return;
-    
-    columnOrder = columnOrder.filter(col => col !== colName);
-    
-    allData = allData.map(item => {
-        const newItem = { ...item };
-        delete newItem[colName];
-        return newItem;
-    });
-    
-    saveData();
-    renderTableHeader();
-    renderTable();
-    renderCategoryFilters();
 }
 
 // 添加新列
@@ -934,5 +1012,3 @@ function addNewItem() {
     applyFilters();
     renderCategoryFilters();
 }
-
-document.addEventListener('DOMContentLoaded', checkAuth);
