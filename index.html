@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HS编码查询系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* 密码保护层样式 */
+        #passwordOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f5f5f7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        #passwordOverlay.hidden {
+            display: none;
+        }
+
+        .password-container {
+            background: #ffffff;
+            padding: 50px 60px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .password-container h2 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1d1d1f;
+            letter-spacing: -0.5px;
+        }
+
+        .password-container p {
+            font-size: 15px;
+            color: #86868b;
+            margin-bottom: 30px;
+        }
+
+        .password-input-group {
+            margin-bottom: 20px;
+        }
+
+        #passwordInput {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid #e5e5e7;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+            outline: none;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        #passwordInput:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 4px rgba(0,122,255,0.1);
+        }
+
+        #passwordInput.error {
+            border-color: #ff3b30;
+            animation: shake 0.4s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
+        .password-error {
+            color: #ff3b30;
+            font-size: 13px;
+            margin-top: 8px;
+            min-height: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .password-error.show {
+            opacity: 1;
+        }
+
+        #passwordSubmit {
+            width: 100%;
+            padding: 14px 20px;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #passwordSubmit:hover {
+            background: #0056d6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+        }
+
+        #passwordSubmit:active {
+            transform: translateY(0);
+        }
+
+        .lock-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: #ffffff;
+            padding: 30px 40px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #007aff;
+        }
+
+        .search-section {
+            background: #ffffff;
+            padding: 25px 40px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 15px 50px 15px 20px;
+            border: 2px solid #e5e5e7;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        #searchInput:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 4px rgba(0,122,255,0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+            color: #86868b;
+        }
+
+        .filters {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+
+        .filter-tag {
+            padding: 8px 16px;
+            background: #f5f5f7;
+            border: 1px solid #e5e5e7;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .filter-tag:hover {
+            background: #e5e5e7;
+        }
+
+        .filter-tag.active {
+            background: #007aff;
+            color: white;
+            border-color: #007aff;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .add-btn {
+            padding: 8px 16px;
+            background: #ffffff;
+            border: 1.5px solid #007aff;
+            color: #007aff;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            user-select: none;
+        }
+
+        .add-btn:hover {
+            background: #007aff;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .add-btn.secondary {
+            border-color: #34c759;
+            color: #34c759;
+        }
+
+        .add-btn.secondary:hover {
+            background: #34c759;
+            color: white;
+        }
+
+        .table-container {
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f5f5f7;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            padding: 16px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            color: #6e6e73;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e5e5e7;
+            cursor: pointer;
+            position: relative;
+        }
+
+        th:hover {
+            background: #ebebeb;
+        }
+
+        th:hover::after {
+            content: '✏️';
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            animation: pulse 1s infinite;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #f5f5f7;
+            transition: background 0.2s;
+            cursor: move;
+        }
+
+        tbody tr:hover {
+            background: #fafafa;
+        }
+
+        tbody tr.dragging {
+            opacity: 0.5;
+        }
+
+        td {
+            padding: 14px 12px;
+            font-size: 14px;
+            position: relative;
+        }
+
+        td.editable {
+            cursor: pointer;
+            position: relative;
+        }
+
+        td.editable:hover::after {
+            content: '✏️';
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .category-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .category-tag {
+            padding: 4px 10px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .delete-col-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            opacity: 0;
+            transition: all 0.2s;
+            margin-left: 8px;
+        }
+
+        th:hover .delete-col-btn {
+            opacity: 0.6;
+        }
+
+        .delete-col-btn:hover {
+            opacity: 1 !important;
+            transform: scale(1.3);
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px 8px;
+            opacity: 0.6;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #007aff;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .drag-handle {
+            cursor: move;
+            color: #c7c7cc;
+            font-size: 18px;
+            padding-right: 8px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #86868b;
+            font-size: 16px;
+        }
+
+        .search-suggestions {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px;
+            text-align: left;
+        }
+
+        .search-suggestions h3 {
+            font-size: 14px;
+            color: #1d1d1f;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .suggestion-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .suggestion-item {
+            padding: 6px 12px;
+            background: #ffffff;
+            border: 1px solid #e5e5e7;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #007aff;
+        }
+
+        .suggestion-item:hover {
+            background: #007aff;
+            color: white;
+            border-color: #007aff;
+            transform: translateY(-1px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #86868b;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                padding: 15px;
+            }
+            
+            table {
+                font-size: 13px;
+            }
+            
+            th, td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 密码保护层 -->
+    <div id="passwordOverlay">
+        <div class="password-container">
+            <div class="lock-icon">🔐</div>
+            <h2>访问验证</h2>
+            <p>请输入密码以继续</p>
+            <div class="password-input-group">
+                <input 
+                    type="password" 
+                    id="passwordInput" 
+                    placeholder="请输入密码"
+                    autocomplete="off"
+                >
+                <div class="password-error" id="passwordError"></div>
+            </div>
+            <button id="passwordSubmit">确认</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>HS编码查询系统</h1>
+        </header>
+
+        <div class="search-section">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="输入关键词找找看..."
+                >
+                <span class="search-icon">🔍</span>
+            </div>
+            
+            <div class="filters">
+                <div class="filter-group" id="categoryFilters"></div>
+                <div class="action-buttons">
+                    <button class="add-btn" onclick="addNewItem()">添加条目</button>
+                    <button class="add-btn secondary" onclick="addNewColumn()">添加列</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr id="tableHeader">
+                        <th style="width: 30px;"></th>
+                        <th style="width: 80px;">编号</th>
+                        <th style="width: 180px;" class="editable-header" data-field="类别">类别 <button class="delete-col-btn" onclick="deleteColumn('类别')" title="删除此列">❌</button></th>
+                        <th style="width: 220px;" class="editable-header" data-field="中英品名">中英品名 <button class="delete-col-btn" onclick="deleteColumn('中英品名')" title="删除此列">❌</button></th>
+                        <th style="width: 200px;" class="editable-header" data-field="材质/用途判断">材质/用途判断 <button class="delete-col-btn" onclick="deleteColumn('材质/用途判断')" title="删除此列">❌</button></th>
+                        <th style="width: 100px;" class="editable-header" data-field="HS6">HS6 <button class="delete-col-btn" onclick="deleteColumn('HS6')" title="删除此列">❌</button></th>
+                        <th style="width: 120px;" class="editable-header" data-field="10位申报">10位申报 <button class="delete-col-btn" onclick="deleteColumn('10位申报')" title="删除此列">❌</button></th>
+                        <th style="width: 100px;" class="editable-header" data-field="B3 Duty / MFN">税率 <button class="delete-col-btn" onclick="deleteColumn('B3 Duty / MFN')" title="删除此列">❌</button></th>
+                        <th style="width: 150px;" class="editable-header" data-field="口径">口径 <button class="delete-col-btn" onclick="deleteColumn('口径')" title="删除此列">❌</button></th>
+                        <th style="width: 50px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTable">
+                    <tr>
+                        <td colspan="20" class="loading">数据加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
