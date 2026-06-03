@@ -1,4 +1,4 @@
-﻿// 更新同步状态显示
+// 更新同步状态显示
 function updateSyncStatus(status, message) {
     const syncIcon = document.getElementById('syncIcon');
     const syncText = document.getElementById('syncText');
@@ -423,6 +423,57 @@ const DATA_VERSION = 2;
 //     document.getElementById('searchInput').addEventListener('input', handleSearch);
 // }
 
+// 生成初始数据（统一补充 id 和 order）
+function createInitialData() {
+    return initialData.map((item, index) => ({
+        ...item,
+        id: Date.now() + index,
+        order: index
+    }));
+}
+
+// Firebase Realtime Database 不允许对象 key 包含 . # $ / [ ]
+// 所以把整份表格数据转成 JSON 字符串保存，避免列名如“材质/用途判断”“B3 Duty / MFN”导致同步失败。
+function createFirebasePayload() {
+    return {
+        dataJson: JSON.stringify(allData),
+        columnsJson: JSON.stringify(columnOrder),
+        lastModified: Date.now(),
+        schemaVersion: 2
+    };
+}
+
+// 兼容读取新版 JSON 字符串格式；如果以后遇到旧格式，也尽量正常读取。
+function readFirebasePayload(firebaseData) {
+    let parsedData = createInitialData();
+    let parsedColumns = columnOrder;
+
+    try {
+        if (firebaseData.dataJson) {
+            parsedData = JSON.parse(firebaseData.dataJson);
+        } else if (Array.isArray(firebaseData.data)) {
+            parsedData = firebaseData.data;
+        }
+    } catch (error) {
+        console.error('❌ Firebase 数据解析失败，改用初始数据:', error);
+    }
+
+    try {
+        if (firebaseData.columnsJson) {
+            parsedColumns = JSON.parse(firebaseData.columnsJson);
+        } else if (Array.isArray(firebaseData.columns)) {
+            parsedColumns = firebaseData.columns;
+        }
+    } catch (error) {
+        console.error('❌ Firebase 列配置解析失败，改用默认列:', error);
+    }
+
+    return {
+        data: parsedData,
+        columns: parsedColumns
+    };
+}
+
 // 加载数据 - 从 Firebase 同步或本地存储
 function loadData() {
     if (!firebaseEnabled) {
@@ -443,13 +494,9 @@ function loadData() {
             console.log('✅ 从 Firebase 加载数据成功');
             updateSyncStatus('connected', '已连接 · 多人协同');
             
-            allData = firebaseData.data || initialData.map((item, index) => ({
-                ...item,
-                id: Date.now() + index,
-                order: index
-            }));
-            
-            columnOrder = firebaseData.columns || columnOrder;
+            const parsedFirebaseData = readFirebasePayload(firebaseData);
+            allData = parsedFirebaseData.data;
+            columnOrder = parsedFirebaseData.columns;
             
             // 同时保存到本地缓存
             localStorage.setItem('hsCodeData', JSON.stringify(allData));
@@ -458,11 +505,7 @@ function loadData() {
             console.log('⚠️ Firebase 中无数据，使用初始数据');
             updateSyncStatus('syncing', '正在初始化...');
             // Firebase 中没有数据，使用初始数据并上传
-            allData = initialData.map((item, index) => ({
-                ...item,
-                id: Date.now() + index,
-                order: index
-            }));
+            allData = createInitialData();
             saveData(); // 上传到 Firebase
             updateSyncStatus('connected', '已连接 · 多人协同');
         }
@@ -490,11 +533,7 @@ function loadLocalData() {
     if (savedData) {
         allData = JSON.parse(savedData);
     } else {
-        allData = initialData.map((item, index) => ({
-            ...item,
-            id: Date.now() + index,
-            order: index
-        }));
+        allData = createInitialData();
     }
     
     if (savedColumns) {
@@ -516,11 +555,7 @@ function saveData() {
     // 如果 Firebase 已启用，同步到云端
     if (firebaseEnabled && dataRef) {
         updateSyncStatus('syncing', '正在同步...');
-        const dataToSave = {
-            data: allData,
-            columns: columnOrder,
-            lastModified: Date.now()
-        };
+        const dataToSave = createFirebasePayload();
         
         dataRef.set(dataToSave)
             .then(() => {
@@ -550,8 +585,9 @@ function setupRealtimeSync() {
             const firebaseData = snapshot.val();
             console.log('🔄 检测到其他用户的更改，正在同步...');
             
-            allData = firebaseData.data || allData;
-            columnOrder = firebaseData.columns || columnOrder;
+            const parsedFirebaseData = readFirebasePayload(firebaseData);
+            allData = parsedFirebaseData.data || allData;
+            columnOrder = parsedFirebaseData.columns || columnOrder;
             
             // 更新本地缓存
             localStorage.setItem('hsCodeData', JSON.stringify(allData));
