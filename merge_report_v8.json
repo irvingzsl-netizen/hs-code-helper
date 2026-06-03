@@ -1,0 +1,9 @@
+{
+  "version": "v8",
+  "based_on": "merged-hs-fixed-placeholder-v7",
+  "changes": [
+    "Removed the exact text 材质未明/材质未名 from data fields only; rows and other content were preserved.",
+    "New draft rows now allow clicking the whole cell area to edit until all fields are completed.",
+    "Existing completed rows still use the pencil button to prevent accidental edits."
+  ]
+}
