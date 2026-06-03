@@ -42,9 +42,6 @@ function updateSyncStatus(status, message) {
 }
 
 // ========== Firebase 配置和初始化 ==========
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
 const firebaseConfig = {
     apiKey: "AIzaSyB5zN9eVQGRqfvK3oGNEh23QuOMnbQRTSY",
     authDomain: "aoao-39647.firebaseapp.com",
@@ -56,9 +53,9 @@ const firebaseConfig = {
 };
 
 // 初始化 Firebase
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
-const dataRef = ref(database, 'hsCodeData');
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+const dataRef = database.ref('hsCodeData');
 
 // ========== 密码保护功能 ==========
 const CORRECT_PASSWORD = "1140";
@@ -384,7 +381,7 @@ function loadData() {
     updateSyncStatus('connecting', '正在连接...');
     
     // 先从 Firebase 获取数据
-    get(dataRef).then((snapshot) => {
+    dataRef.once('value').then((snapshot) => {
         if (snapshot.exists()) {
             const firebaseData = snapshot.val();
             console.log('✅ 从 Firebase 加载数据成功');
@@ -464,7 +461,7 @@ function saveData() {
         lastModified: Date.now()
     };
     
-    set(dataRef, dataToSave)
+    dataRef.set(dataToSave)
         .then(() => {
             console.log('✅ 数据已同步到 Firebase');
             updateSyncStatus('synced', '已同步');
@@ -478,7 +475,7 @@ function saveData() {
 // 设置实时同步监听
 let isLocalChange = false;
 function setupRealtimeSync() {
-    onValue(dataRef, (snapshot) => {
+    dataRef.on('value', (snapshot) => {
         if (isLocalChange) {
             // 如果是本地修改触发的，忽略
             isLocalChange = false;
