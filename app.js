@@ -240,7 +240,7 @@ const DATA_VERSION = 2;
 // 说明：这里使用旧项目同一个 Firebase Database，但保存到 hsCodeSystem/state.json，避免覆盖旧网站的 items.json。
 const DATABASE_URL = "https://aoao-39647-default-rtdb.firebaseio.com";
 const DATABASE_PATH = "hsCodeSystem/state";
-const CORRECT_PASSWORD = "9919";
+const CORRECT_PASSWORD = "1140";
 const SYNC_INTERVAL_MS = 3000;
 
 let lastCloudSignature = '';
